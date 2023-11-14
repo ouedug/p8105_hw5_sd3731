@@ -5,26 +5,75 @@ date: "2023-11-13"
 output: github_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r}
+library(tidyverse)
+```
+
+## Problem 1
+
+Describe the raw data.
+```{r , message=FALSE}
+homicide = read_csv("./data/homicide-data.csv")
+```
+
+**Variables**:
+
+- `uid`: unique identifier
+
+- `reported_date`: date of homicide accident
+
+- `victim_last`: last name of victim
+
+- `victim_first`: first name of victim
+
+- `victim_race`: race name of victim
+
+- `victim_age`: age name of victim
+
+- `victim_sex`: sex name of victim
+
+- `city`: city location of homicide accident
+
+- `state`: state location of homicide accident
+
+- `lat`: latitude location of homicide accident
+
+- `lon`: longitude location of homicide accident
+
+- `disposition`: disposition outcome of homicide accident
+
+The dataset `homicide` contains information about homicide cases in United States from 2007 to 2017. It contains `r nrow(homicide)` rows and `r ncol(homicide)` variable, where each row is a criminal homicide case. The dataset includes the time the case was reported, the information about victims, the location of killing, and whether an arrest was made. 
+
+```{r}
+homicide =
+  mutate(
+    city_state = str_c(city, ", ", state)
+  )
+```
+
+```{r}
+homicide |> 
+  count(city_state)
+
+homicide |> 
+  filter(str_detect(disposition, "Open|without")) |> 
+  count(city_state)
+
+homicide_Baltimore <-
+  homicide |> 
+  filter(city_state == "Baltimore, MD")|> 
+  count(disposition)
+
+prop_res <- 
+  prop.test(x = homicide_Baltimore$n[[2]] + homicide_Baltimore$n[[3]], 
+          n = sum(homicide_Baltimore$n), 
+          p = 0.5) |> 
+  broom::tidy()
+
+prop_res |> 
+  pull(estimate, conf.low)
 ```
 
 ## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
-```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
