@@ -5,16 +5,30 @@ date: "2023-11-13"
 output: github_document
 ---
 
-```{r}
+```{r, message=FALSE}
 library(tidyverse)
+library(dplyr)
+
+knitr::opts_chunk$set(
+	warning = FALSE,
+	message = FALSE,
+	fig.width = 8, 
+	fig.height = 6)
+
+theme_set(theme_minimal())
 ```
 
 ## Problem 1
 
-Describe the raw data.
-```{r , message=FALSE}
+### Accessing and Describing the Data
+
+1. Load the Data
+```{r, message=FALSE}
 homicide = read_csv("./data/homicide-data.csv")
 ```
+
+2. Inspect the Data
+The `homicide` dataset includes data on homicide incidents in the United States spanning from 2007 to 2017. It is comprised of `r nrow(homicide)` rows and `r ncol(homicide)` columns.
 
 **Variables**:
 
@@ -42,14 +56,29 @@ homicide = read_csv("./data/homicide-data.csv")
 
 - `disposition`: disposition outcome of homicide accident
 
-The dataset `homicide` contains information about homicide cases in United States from 2007 to 2017. It contains `r nrow(homicide)` rows and `r ncol(homicide)` variable, where each row is a criminal homicide case. The dataset includes the time the case was reported, the information about victims, the location of killing, and whether an arrest was made. 
+### Data Manipulation
 
 ```{r}
-homicide =
+homicide = homicide|>
   mutate(
     city_state = str_c(city, ", ", state)
-  )
+    )
+
+homicide |> 
+        group_by(city) |>
+        summarise(count = n()) |>
+        knitr::kable(caption = "Total number of homicides")
+
+unsolved_label = c("Closed without arrest", "Open/No arrest")
+homicide |>
+        filter(disposition %in% unsolved_label) |>
+        group_by(city) |>
+        summarise(unsolved_count = n()) |>
+        knitr::kable(caption = "Total number of unsolved homicides")
+    
 ```
+
+
 
 ```{r}
 homicide |> 
