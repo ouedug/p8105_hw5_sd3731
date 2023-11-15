@@ -21,7 +21,6 @@ theme_set(theme_minimal())
 ## Problem 1
 
 ### Accessing and Describing the Data
-
 1. Load the Data
 ```{r, message=FALSE}
 homicide = read_csv("./data/homicide-data.csv")
@@ -57,7 +56,6 @@ The `homicide` dataset includes data on homicide incidents in the United States 
 - `disposition`: disposition outcome of homicide accident
 
 ### Data Manipulation
-
 ```{r}
 homicide = homicide|>
   mutate(
@@ -69,40 +67,110 @@ homicide |>
         summarise(count = n()) |>
         knitr::kable(caption = "Total number of homicides")
 
-unsolved_label = c("Closed without arrest", "Open/No arrest")
+unsolved_homicides = c("Closed without arrest", "Open/No arrest")
 homicide |>
-        filter(disposition %in% unsolved_label) |>
+        filter(disposition %in% unsolved_homicides) |>
         group_by(city) |>
         summarise(unsolved_count = n()) |>
         knitr::kable(caption = "Total number of unsolved homicides")
-    
 ```
 
+### Proportion Test for Baltimore, MD
+```{r}
+baltimore = homicide |>
+  filter(city_state == "Baltimore, MD") |>
+   mutate(unsolved = if_else(disposition %in% unsolved_homicides, 1, 0))
 
+prop_test_bal = prop.test(sum(baltimore$unsolved), nrow(baltimore))
+prop_test_df = broom::tidy(prop_test_bal)
+```
+
+Estimated Proportion: `r prop_test_df$estimate`
+Confidence Interval: (`r prop_test_df$conf.low`, `r prop_test_df$conf.high`)
+
+### Proportion Test for All Cities
+```{r}
+tidy = function(city_name, df){
+        city_data = df |> 
+                filter(city == city_name) |> 
+                mutate(unsolved = if_else(disposition %in% unsolved_homicides, 1, 0))
+        prop_test_obj = prop.test(sum(city_data$unsolved), nrow(city_data))
+        prop_test_df = broom::tidy(prop_test_obj)
+        
+        tibble(
+                estimate_prop = prop_test_df$estimate,
+                conf_low = prop_test_df$conf.low,
+                conf_high = prop_test_df$conf.high
+        )
+}
+```
 
 ```{r}
-homicide |> 
-  count(city_state)
-
-homicide |> 
-  filter(str_detect(disposition, "Open|without")) |> 
-  count(city_state)
-
-homicide_Baltimore <-
-  homicide |> 
-  filter(city_state == "Baltimore, MD")|> 
-  count(disposition)
-
-prop_res <- 
-  prop.test(x = homicide_Baltimore$n[[2]] + homicide_Baltimore$n[[3]], 
-          n = sum(homicide_Baltimore$n), 
-          p = 0.5) |> 
-  broom::tidy()
-
-prop_res |> 
-  pull(estimate, conf.low)
+cities = homicide$city |> unique()
+test_result = tibble(
+        city = cities,
+        hypo_test = map(cities, tidy, df = homicide)
+        ) |> 
+        unnest(hypo_test)
+test_result |> knitr::kable(caption = "Estimated proportion and CI of unsolved homicides")
 ```
 
-## R Markdown
+### Creating the Plot
+```{r}
+test_result |>
+  mutate(city = fct_reorder(city, estimate_prop)) |>
+        ggplot(aes(x = city, y = estimate_prop, color = city), width = 100) +
+        geom_point() +
+        geom_errorbar(aes(ymin = conf_low, ymax = conf_high)) +
+        theme_bw() +
+        labs(x = "", y = "Proportion Unsolved", title = "Proportion of Unsolved Homicides by City") +
+        theme(plot.title = element_text(hjust = 0.5), axis.title.x=element_blank(), axis.text.x=element_blank(), axis.ticks.x=element_blank())
+```
 
 
+## Problem 2
+
+### Creating a Dataframe of File Names
+```{r}
+pth = "./data/data2/"
+
+data_df = tibble(
+        filename = list.files(pth)
+)
+```
+
+### Function
+```{r}
+extract_info = function(filename, pth){
+        tibble(
+                read_csv(str_c(pth, filename))
+        )
+}
+
+longitudial_data = data_df |>
+        mutate(
+                subject_id = str_extract(filename, pattern = "\\d+"),
+                arm = str_extract(filename, pattern = "^[a-zA-Z]+"),
+                data2 = map(filename, extract_info, pth)
+        ) |> 
+        unnest(data2)
+```
+
+### Creating a Spaghetti Plot
+```{r}
+longitudial_data |> 
+        pivot_longer(starts_with("week_"), names_prefix = "week_", names_to = "week") |>
+        mutate(week = as.numeric(week)) |>
+        ggplot(aes(x = week, y = value, color = subject_id)) +
+        geom_path() +
+        theme_bw() +
+        labs(x = "Week", y = "Observation Value", title = "Observations Over Time") +
+        theme(plot.title = element_text(hjust = 0.5)) + 
+        facet_grid(. ~ arm)
+```
+
+### Analyzing the Plot
+The measurements from the experimental group are typically greater than those from the control group. Additionally, the data from the experimental group displays a rising pattern as time progresses, while the measurements for the control group tend to remain fairly constant.
+
+
+## Problem 3
