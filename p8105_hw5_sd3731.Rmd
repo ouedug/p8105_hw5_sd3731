@@ -174,3 +174,99 @@ The measurements from the experimental group are typically greater than those fr
 
 
 ## Problem 3
+
+```{r}
+# Set Up the Simulation
+n = 30
+sigma = 5
+mu = 0:6
+num_simulations = 5000
+alpha = 0.05
+
+simulate_t_test <- function(mu, n, sigma) {
+  sample <- rnorm(n, mean = mu, sd = sigma)
+  test_result <- t.test(sample, mu = 0, conf.level = 0.95)
+  tidy_result <- broom::tidy(test_result) %>%
+    rename(mu_hat = estimate, p_value = p.value)
+  return(tidy_result[c("mu_hat", "p_value")])
+}
+
+# Perform One-Sample t-Test
+simulation_results <- map_dfr(1:num_simulations, ~simulate_t_test(mu, n, sigma))
+
+head(simulation_results)
+```
+
+```{r}
+# Calculate Power and Average Estimates
+mu_list =
+  list(
+    "mu = 1" = 1,
+    "mu = 2" = 2,
+    "mu = 3" = 3,
+    "mu = 4" = 4,
+    "mu = 5" = 5,
+    "mu = 6" = 6
+  )
+
+results <- map_df(mu_list, function(mu) {
+  map_dfr(1:num_simulations, ~simulate_t_test(mu, n, sigma))
+}, .id = "mu")
+
+results %>%
+  mutate(mu = as.numeric(str_extract(results$mu, "\\d+")))
+
+power_results <- results %>%
+  group_by(mu) %>%
+  summarise(
+    power = mean(p_value < alpha),
+    mean_mu_hat = mean(mu_hat),
+    mean_mu_rejected = mean(mu_hat[p_value < alpha])
+  ) %>%
+  ungroup()
+
+# Power plot
+power_results %>%
+  ggplot(aes(x = mu, y = power, group = 1)) +
+  geom_point(color = "turquoise") +
+  geom_line(color = "turquoise") +
+  labs(title = "Power vs. True µ", 
+       x = "True µ", 
+       y = "Power")
+```
+
+1. Comments:
+The graph illustrates that the power of the test grows with an increase in the true value of μ, demonstrating that greater effect sizes correspond to enhanced power. Nonetheless, there is an observable leveling off in power at higher effect sizes, indicating a threshold beyond which additional increases in effect size do not substantially improve the power of the test.
+
+```{r}
+# Estimate plot
+power_results %>%
+  ggplot(aes(x = mu, y = mean_mu_hat, group = 1)) +
+  geom_point(color = "coral") +
+  geom_line(color = "coral") +
+  labs(title = "Average Estimate of µ vs. True µ", 
+       x = "True Value of µ", 
+       y = "Average Estimate")
+```
+
+```{r}
+power_results %>%
+  ggplot(aes(x = mu)) +
+  geom_point(aes(y = mean_mu_hat, group = 1, color = "All Tests")) +
+  geom_line(aes(y = mean_mu_hat, group = 1, color = "All Tests")) +
+  geom_point(aes(y = mean_mu_rejected, group = 1, color = "Rejected Tests")) +
+  geom_line(aes(y = mean_mu_rejected, group = 1, color = "Rejected Tests"))  +
+  scale_color_manual(labels = c("All Tests", "Rejected Tests"), 
+                     values = c("turquoise", "coral")) +
+  labs(title = "Mean Estimate vs. True µ", 
+       x = "True µ", 
+       y = "Mean Estimate") +
+  theme(legend.title = element_blank())
+```
+
+2. Answers:
+As the true value of μ rises, the average of the sample estimates μ_hat in tests where the null hypothesis is rejected increasingly aligns with the true μ.
+
+Explanation: When μ is relatively small, samples showing a significantly higher μ_hat than the true μ are more likely to lead to the rejection of the null hypothesis, resulting in a higher mean of μ_hat compared to μ. However, as μ increases, samples where μ_hat is closer to μ are more frequently associated with null hypothesis rejections, leading to the mean of μ_hat becoming progressively closer to the true μ.
+
+
